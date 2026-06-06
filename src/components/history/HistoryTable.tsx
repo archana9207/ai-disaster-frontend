@@ -1,74 +1,93 @@
 'use client';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/src/components/ui/table';
+import { useState } from 'react';
+import { Search, Clock } from 'lucide-react';
 
-function formatDate(dateString: string): string {
-  if (!dateString) return 'No date';
-  try {
-    // 1. Try standard ISO
-    let date = new Date(dateString);
-    // 2. If invalid and contains space → replace space with 'T'
-    if (isNaN(date.getTime()) && dateString.includes(' ')) {
-      date = new Date(dateString.replace(' ', 'T'));
-    }
-    // 3. If still invalid, try manual parse (Python "YYYY-MM-DD HH:MM:SS")
-    if (isNaN(date.getTime())) {
-      const parts = dateString.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2}):(\d{2})/);
-      if (parts) {
-        const [_, year, month, day, hour, minute, second] = parts;
-        date = new Date(Date.UTC(
-          parseInt(year), parseInt(month) - 1, parseInt(day),
-          parseInt(hour), parseInt(minute), parseInt(second)
-        ));
-      }
-    }
-    // 4. Final fallback
-    if (isNaN(date.getTime())) return 'Invalid date';
-    return date.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
-  } catch {
-    return 'Invalid date';
-  }
+interface HistoryRecord {
+  id: number;
+  temperature: number;
+  humidity: number;
+  precip_mm: number;
+  wind_kph: number;
+  pressure_mb: number;
+  predicted_disaster: string;
+  created_at: string;
 }
 
-export function HistoryTable({ data }: { data: any[] }) {
-  if (!data || data.length === 0) return <p className="text-muted-foreground text-center py-8">No predictions yet.</p>;
+function formatDate(dateString: string): string {
+  try {
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'Invalid date';
+    return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) +
+      ', ' + date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+  } catch { return 'Invalid date'; }
+}
+
+const DISASTER_COLORS: Record<string, string> = {
+  Flood: '#3b82f6', Drought: '#f59e0b', Storm: '#8b5cf6', Cyclone: '#06b6d4', Normal: '#10b981',
+};
+
+export function HistoryTable({ data }: { data: HistoryRecord[] }) {
+  const [search, setSearch] = useState('');
+
+  const filtered = (data || []).filter(r =>
+    r.predicted_disaster?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center py-14">
+        <Clock className="w-7 h-7 text-slate-700 mb-2.5" />
+        <p className="text-sm text-slate-600">No predictions yet.</p>
+      </div>
+    );
+  }
 
   return (
-    <div className="overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow className="border-white/10">
-            <TableHead>Date</TableHead>
-            <TableHead>Temp (°C)</TableHead>
-            <TableHead>Humidity (%)</TableHead>
-            <TableHead>Rain (mm)</TableHead>
-            <TableHead>Wind (km/h)</TableHead>
-            <TableHead>Pressure (mb)</TableHead>
-            <TableHead>Risk</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.map((record) => (
-            <TableRow key={record.id} className="border-white/5 hover:bg-white/5">
-              <TableCell>{formatDate(record.created_at)}</TableCell>
-              <TableCell>{record.temperature.toFixed(1)}</TableCell>
-              <TableCell>{record.humidity}</TableCell>
-              <TableCell>{record.precip_mm.toFixed(1)}</TableCell>
-              <TableCell>{record.wind_kph.toFixed(1)}</TableCell>
-              <TableCell>{record.pressure_mb.toFixed(1)}</TableCell>
-              <TableCell>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  record.predicted_disaster === 'Flood' ? 'bg-blue-500/20 text-blue-300' :
-                  record.predicted_disaster === 'Drought' ? 'bg-yellow-500/20 text-yellow-300' :
-                  record.predicted_disaster === 'Storm' ? 'bg-cyan-500/20 text-cyan-300' :
-                  'bg-green-500/20 text-green-300'
-                }`}>
-                  {record.predicted_disaster}
-                </span>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+    <div>
+      <div className="relative mb-4">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500 pointer-events-none" />
+        <input type="text" placeholder="Filter by disaster type…" value={search} onChange={e => setSearch(e.target.value)}
+          className="w-full max-w-xs pl-9 pr-3 py-2 rounded-xl text-xs text-slate-300 placeholder-slate-600 outline-none"
+          style={{ background: '#162035', border: '1px solid rgba(59,130,246,0.14)' }}
+          onFocus={e => (e.target.style.borderColor = '#3b82f6')}
+          onBlur={e => (e.target.style.borderColor = 'rgba(59,130,246,0.14)')} />
+      </div>
+      <div className="overflow-x-auto rounded-xl" style={{ border: '1px solid rgba(59,130,246,0.08)' }}>
+        <table className="w-full text-xs min-w-175">
+          <thead>
+            <tr style={{ background: 'rgba(59,130,246,0.03)', borderBottom: '1px solid rgba(59,130,246,0.07)' }}>
+              {['Date', 'Temp (°C)', 'Humidity (%)', 'Rain (mm)', 'Wind (km/h)', 'Pressure (mb)', 'Risk'].map(h => (
+                <th key={h} className="text-left px-4 py-3 text-[10px] font-bold text-slate-600 uppercase tracking-wider">{h}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.map((record, idx) => {
+              const dc = DISASTER_COLORS[record.predicted_disaster] || '#3b82f6';
+              return (
+                <tr key={record.id}
+                  style={{ borderBottom: idx < filtered.length - 1 ? '1px solid rgba(59,130,246,0.05)' : 'none' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.015)')}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}>
+                  <td className="px-4 py-3 text-slate-400">{formatDate(record.created_at)}</td>
+                  <td className="px-4 py-3 text-slate-300">{record.temperature?.toFixed(1)}</td>
+                  <td className="px-4 py-3 text-slate-300">{record.humidity}</td>
+                  <td className="px-4 py-3 text-slate-300">{record.precip_mm?.toFixed(1)}</td>
+                  <td className="px-4 py-3 text-slate-300">{record.wind_kph?.toFixed(1)}</td>
+                  <td className="px-4 py-3 text-slate-300">{record.pressure_mb?.toFixed(1)}</td>
+                  <td className="px-4 py-3">
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full"
+                      style={{ background: `${dc}14`, color: dc }}>{record.predicted_disaster}</span>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {filtered.length < data.length && (
+        <p className="text-[11px] text-slate-600 mt-3 text-center">Showing {filtered.length} of {data.length}</p>
+      )}
     </div>
   );
 }

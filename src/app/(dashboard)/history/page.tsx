@@ -1,77 +1,49 @@
 'use client';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/src/components/ui/table';
+import { useEffect, useState } from 'react';
+import { getHistory } from '@/src/services/analytics';
+import { HistoryTable } from '@/src/components/history/HistoryTable';
+import { Card, CardContent, CardHeader, CardTitle } from '@/src/components/ui/card';
+import { Loader2 } from 'lucide-react';
 
-interface HistoryRecord {
-  id: number;
-  temperature: number;
-  humidity: number;
-  precip_mm: number;
-  wind_kph: number;
-  pressure_mb: number;
-  predicted_disaster: string;
-  created_at: string;
-}
+export default function HistoryPage() {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-function formatDate(dateString: string): string {
-  try {
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) {
-      console.warn('Invalid date string:', dateString);
-      return 'Invalid date';
-    }
-    return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }) + 
-           ', ' + date.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-  } catch {
-    return 'Invalid date';
+  useEffect(() => {
+    getHistory(100)
+      .then(res => setHistory(res.data))
+      .catch(err => setError(err.response?.data?.detail || 'Failed to load history'))
+      .finally(() => setLoading(false));
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="animate-spin text-primary" size={48} />
+      </div>
+    );
   }
-}
 
-export function HistoryTable({ data }: { data: HistoryRecord[] }) {
-  const getBadgeColor = (disaster: string) => {
-    switch (disaster) {
-      case 'Flood': return 'bg-blue-500/20 text-blue-300';
-      case 'Drought': return 'bg-yellow-500/20 text-yellow-300';
-      case 'Storm': return 'bg-cyan-500/20 text-cyan-300';
-      default: return 'bg-green-500/20 text-green-300';
-    }
-  };
-
-  if (!data || data.length === 0) {
-    return <p className="text-muted-foreground text-center py-8">No predictions yet.</p>;
+  if (error) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <p className="text-red-400">{error}</p>
+      </div>
+    );
   }
 
   return (
-    <div className="overflow-x-auto">
-      <Table>
-        <TableHeader>
-          <TableRow className="border-white/10">
-            <TableHead>Date</TableHead>
-            <TableHead>Temp (°C)</TableHead>
-            <TableHead>Humidity (%)</TableHead>
-            <TableHead>Rain (mm)</TableHead>
-            <TableHead>Wind (km/h)</TableHead>
-            <TableHead>Pressure (mb)</TableHead>
-            <TableHead>Risk</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {data.map((record) => (
-            <TableRow key={record.id} className="border-white/5 hover:bg-white/5">
-              <TableCell>{formatDate(record.created_at)}</TableCell>
-              <TableCell>{record.temperature.toFixed(1)}</TableCell>
-              <TableCell>{record.humidity}</TableCell>
-              <TableCell>{record.precip_mm.toFixed(1)}</TableCell>
-              <TableCell>{record.wind_kph.toFixed(1)}</TableCell>
-              <TableCell>{record.pressure_mb.toFixed(1)}</TableCell>
-              <TableCell>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getBadgeColor(record.predicted_disaster)}`}>
-                  {record.predicted_disaster}
-                </span>
-              </TableCell>
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
+    <div className="space-y-8">
+      <h1 className="text-xl font-bold text-white" style={{ fontFamily: 'Space Grotesk,sans-serif' }}>Prediction History</h1>
+      <Card className="glass-card">
+        <CardHeader>
+          <CardTitle>All Predictions</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <HistoryTable data={history} />
+        </CardContent>
+      </Card>
     </div>
   );
 }
